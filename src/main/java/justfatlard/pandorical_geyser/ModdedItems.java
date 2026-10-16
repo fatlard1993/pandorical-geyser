@@ -79,6 +79,7 @@ final class ModdedItems {
 		if (enchantable != null) {
 			definition.component(JavaItemDataComponents.ENCHANTABLE, enchantable.value());
 		}
+		ItemBehaviour.describe(definition, item);
 		// A block item with no flat icon of its own shows its block, drawn by Bedrock.
 		block.ifPresent(placed -> definition.component(GeyserItemDataComponents.BLOCK_PLACER, GeyserBlockPlacer.of(placed, icon.isEmpty())));
 		return definition.build();
