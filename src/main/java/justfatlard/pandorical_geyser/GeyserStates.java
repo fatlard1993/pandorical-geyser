@@ -13,7 +13,8 @@ import java.util.Optional;
 
 /**
  * HACK: works around a Geyser bug by writing to its internal state list, which it doesn't promise
- * to keep still. Remove once Geyser registers every state of a non-vanilla block itself.
+ * to keep still. Remove once Geyser registers every state of a non-vanilla block itself
+ * (GeyserMC/Geyser#6789); until then this logs that it filled in some, and after, that it filled in none.
  *
  * <p>Geyser makes a Java state known for only the first state of each non-vanilla block it meets.
  * Chunks come out right, since they map states straight to Bedrock, but a block update looks the
