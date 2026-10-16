@@ -1,0 +1,11 @@
+{
+	"required": true,
+	"package": "justfatlard.pandorical_geyser.mixin",
+	"compatibilityLevel": "JAVA_25",
+	"mixins": [
+		"RegistrySyncManagerMixin"
+	],
+	"injectors": {
+		"defaultRequire": 1
+	}
+}
