@@ -25,6 +25,10 @@ dependencies {
 
 	compileOnly "org.geysermc.geyser:api:${project.geyser_api_version}"
 	compileOnly "org.geysermc.floodgate:api:${project.floodgate_api_version}"
+	// Geyser's internals, for GeyserStates alone: a workaround for a Geyser bug, compiled against
+	// rather than reached by reflection so that a change there fails at build time, not quietly.
+	compileOnly("org.geysermc.geyser:core:${project.geyser_api_version}") { transitive = false }
+	compileOnly "net.kyori:adventure-key:5.2.0"
 }
 
 // Fabric tests these predicates against the loader's *normalized* game version,

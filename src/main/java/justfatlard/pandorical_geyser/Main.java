@@ -10,6 +10,7 @@ import org.geysermc.geyser.api.event.EventRegistrar;
 import org.geysermc.geyser.api.event.lifecycle.GeyserDefineCustomBlocksEvent;
 import org.geysermc.geyser.api.event.lifecycle.GeyserDefineCustomItemsEvent;
 import org.geysermc.geyser.api.event.lifecycle.GeyserDefineResourcePacksEvent;
+import org.geysermc.geyser.api.event.lifecycle.GeyserPostInitializeEvent;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -43,6 +44,7 @@ public class Main implements ModInitializer {
 			events.subscribe(EventRegistrar.of(this), GeyserDefineCustomBlocksEvent.class, ModdedBlocks::register);
 			events.subscribe(EventRegistrar.of(this), GeyserDefineCustomItemsEvent.class, ModdedItems::register);
 			events.subscribe(EventRegistrar.of(this), GeyserDefineResourcePacksEvent.class, BedrockPack::register);
+			events.subscribe(EventRegistrar.of(this), GeyserPostInitializeEvent.class, started -> GeyserStates.fillIn(ModdedBlocks.registeredStates()));
 		});
 	}
 
