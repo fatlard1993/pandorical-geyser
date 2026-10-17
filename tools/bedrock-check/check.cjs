@@ -7,9 +7,9 @@
 // The export comes from a server started with -Dpandorical-geyser.export=true. The client jar holds
 // the vanilla textures a server doesn't have. Exit status is the number of looks that differ.
 //
-// The Java side is drawn from the model as Java has it, unturned, with the camera turned the other
-// way instead: the blockstate's rotation is undone by this file's own matrices, never by the mod's
-// code under test, so a mistake there shows up rather than being copied into the reference.
+// The Java side is the model as Java has it, each blockstate piece turned by Blockbench's own
+// rigid quarter turn and, under uvlock, given the UVs Java's uvlock gives, worked out here: never by
+// the mod's code under test, so a mistake there shows up rather than being copied into the reference.
 
 const fs = require('fs')
 const path = require('path')
@@ -73,50 +73,69 @@ function textureUrl(javaId) {
 	return 'data:image/png;base64,' + PNG.sync.write(frame).toString('base64')
 }
 
-// --- Java's rotations, as Minecraft applies them: x first, then y, then z --------------------
+// --- Java's rotations, as Minecraft applies them: x first, then y ------------------------------
 
-// A quarter turn about x takes north to down, and about y takes north to east; each of these
-// undoes one. (Both directions were checked against Blockbench's own rendering of turned models.)
-const UNDO_QUARTER = {
-	x: ([x, y, z]) => [x, -z, y],
-	y: ([x, y, z]) => [z, y, -x],
-}
+// How many of Blockbench's quarter rolls make one of Java's quarter turns. A roll about x takes
+// north to up and Java's x turn takes north to down, so three; about y both take north to east.
+const ROLLS_PER_QUARTER = { x: 3, y: 1 }
 
-/** The camera move that shows the unturned model as the turned one looks: the turn, undone. */
-function undo(piece) {
-	const steps = []
-	for (const axis of ['x', 'y']) {
-		const quarters = (((piece[axis] ?? 0) / 90) % 4 + 4) % 4
-		for (let i = 0; i < quarters; i++) steps.push(axis)
+/**
+ * Java's own UVs for a face left to default: the box's bounds, seen from outside. What uvlock comes to
+ * for a face whose UVs are these, once the box is turned: the texture stays put while the box moves.
+ */
+function positionalUv(direction, from, to) {
+	const [x1, y1, z1] = from
+	const [x2, y2, z2] = to
+	switch (direction) {
+		case 'down': return [x1, 16 - z2, x2, 16 - z1]
+		case 'up': return [x1, z1, x2, z2]
+		case 'north': return [16 - x2, 16 - y2, 16 - x1, 16 - y1]
+		case 'south': return [x1, 16 - y2, x2, 16 - y1]
+		case 'west': return [z1, 16 - y2, z2, 16 - y1]
+		case 'east': return [16 - z2, 16 - y2, 16 - z1, 16 - y1]
 	}
-	return v => steps.reduceRight((acc, axis) => UNDO_QUARTER[axis](acc), v)
 }
 
-/** All the pieces of a look as one Java model, or why they can't be one. */
+const same = (a, b) => a.length === b.length && a.every((v, i) => Math.abs(v - b[i]) < 1e-4)
+
+/** All the pieces of a look as one Java model, each element with its piece's turn, or why it can't be drawn. */
 function javaModel(look) {
 	const pieces = look.java
 	if (pieces.length === 0) return { skip: 'no blockstate file' }
-	const turn = JSON.stringify(['x', 'y', 'z'].map(a => pieces[0][a] ?? 0))
-	if (pieces.some(p => JSON.stringify(['x', 'y', 'z'].map(a => p[a] ?? 0)) !== turn)) {
-		return { skip: 'multipart pieces turned differently, which one camera cannot undo' }
-	}
-	if (pieces.some(p => p.uvlock)) return { skip: 'uvlock, whose textures are recomputed rather than turned' }
-	if (pieces.some(p => (p.z ?? 0) % 360 !== 0)) return { skip: 'a z turn, which this check has no verified undo for' }
+	if (pieces.some(p => (p.z ?? 0) % 360 !== 0)) return { skip: 'a z turn, which this check has no verified turn for' }
 	const textures = {}
 	const elements = []
-	pieces.forEach((piece, i) => {
+	const turns = []
+	for (const [i, piece] of pieces.entries()) {
 		const rename = name => `p${i}_${name}`
 		for (const [name, id] of Object.entries(piece.model.textures)) textures[rename(name)] = id
+		const quarters = axis => (((piece[axis] ?? 0) / 90) % 4 + 4) % 4
+		const quarterTurned = quarters('x') % 2 === 1 || quarters('y') % 2 === 1
 		for (const element of piece.model.elements) {
+			const angledAxes = ['x', 'y', 'z'].filter(a => element.rotation?.[a]).length + (element.rotation?.angle ? 1 : 0)
+			if (quarterTurned && angledAxes > 1) {
+				// Swapping one axis's angle for another's is the whole of a quarter turn only for one axis:
+				// with two, the order they apply in changes, which Blockbench's turn doesn't follow.
+				return { skip: 'a quarter turn of an element angled on two axes' }
+			}
+			if (piece.uvlock) {
+				if (element.rotation && element.rotation.angle) return { skip: 'uvlock on an angled element' }
+				for (const [direction, face] of Object.entries(element.faces ?? {})) {
+					if (face.uv && !same(face.uv, positionalUv(direction, element.from, element.to))) {
+						return { skip: 'uvlock on a face whose UVs are its own, not its position' }
+					}
+				}
+			}
 			const copy = JSON.parse(JSON.stringify(element))
 			for (const face of Object.values(copy.faces ?? {})) {
 				if (face.texture?.startsWith('#')) face.texture = '#' + rename(face.texture.slice(1))
 			}
 			elements.push(copy)
+			turns.push({ x: quarters('x') * ROLLS_PER_QUARTER.x % 4, y: quarters('y') * ROLLS_PER_QUARTER.y % 4, uvlock: !!piece.uvlock })
 		}
-	})
-	if (elements.length === 0) return { skip: 'no elements: drawn as a stand-in box' }
-	return { model: { textures, elements }, undo: undo(pieces[0]) }
+	}
+	if (elements.length === 0) return { skip: 'no elements: Bedrock draws nothing, or a stand-in box' }
+	return { model: { textures, elements }, turns }
 }
 
 // --- Rendering ----------------------------------------------------------------------------------
@@ -149,12 +168,30 @@ function drawingKey(look) {
 }
 
 async function render(page, scene, view) {
-	await page.evaluate(async (scene, view) => {
+	await page.evaluate(async (scene, view, positionalUvSource) => {
+		const positionalUv = eval('(' + positionalUvSource + ')')
 		if (Project) Project.close?.(true)
 		newProject(scene.kind === 'java' ? Formats.java_block : Formats.bedrock_block)
 		const urls = scene.textures
 		if (scene.kind === 'java') {
+			// Turns past Blockbench's size limit come back refused rather than drawn wrong.
+			if (settings.deactivate_size_limit) settings.deactivate_size_limit.set(true)
 			Codecs.java_block.parse(scene.model, 'model.json')
+			Cube.all.forEach((cube, i) => {
+				const turn = scene.turns[i]
+				// UVs as parsed, kept through the turn: Blockbench would otherwise work them out again.
+				cube.autouv = 0
+				// One roll at a time: a roll of several steps moves the box by all of them but turns its
+				// angles by only one.
+				for (let n = 0; n < turn.x; n++) cube.roll(0, 1, [8, 8, 8])
+				for (let n = 0; n < turn.y; n++) cube.roll(1, 1, [8, 8, 8])
+				if (turn.uvlock) {
+					for (const [direction, face] of Object.entries(cube.faces)) {
+						face.uv = positionalUv(direction, cube.from, cube.to)
+						face.rotation = 0
+					}
+				}
+			})
 			for (const tex of Texture.all) {
 				if (urls[tex.id]) tex.fromDataURL(urls[tex.id])
 				tex.render_sides = 'front'
@@ -195,7 +232,7 @@ async function render(page, scene, view) {
 		p.controls.target.set(centre[0], centre[1], centre[2])
 		p.controls.update()
 		p.render()
-	}, scene, view)
+	}, scene, view, positionalUv.toString())
 	await new Promise(r => setTimeout(r, 250))
 	const canvas = await page.evaluateHandle(() => Preview.selected.canvas)
 	return PNG.sync.read(await canvas.screenshot())
@@ -252,14 +289,13 @@ function sideBySide(pairs) {
 		const javaUrls = Object.fromEntries(Object.entries(java.model.textures).map(([name, id]) => [name, textureUrl(id)]))
 		const bedrockUrls = Object.fromEntries(Object.entries(look.materials).map(([name, m]) => [name, textureUrl(exported.textures[m.texture] ?? m.texture)]))
 		const renderMethods = Object.fromEntries(Object.entries(look.materials).map(([name, m]) => [name, m.render]))
-		const javaScene = { kind: 'java', model: java.model, textures: javaUrls }
+		const javaScene = { kind: 'java', model: java.model, textures: javaUrls, turns: java.turns }
 		const bedrockScene = { kind: 'bedrock', model: look.geometry, textures: bedrockUrls, render: renderMethods }
 
 		const pairs = []
 		let worst = 0
 		for (const view of VIEWS) {
-			const javaView = [...java.undo(view.slice(0, 3)), ...java.undo(view.slice(3))]
-			const a = crop(await render(page, javaScene, javaView))
+			const a = crop(await render(page, javaScene, view))
 			const b = crop(await render(page, bedrockScene, view))
 			worst = Math.max(worst, difference(a, b))
 			pairs.push([a, b])

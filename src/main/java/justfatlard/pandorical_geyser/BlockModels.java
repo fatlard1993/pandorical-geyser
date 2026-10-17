@@ -229,6 +229,14 @@ final class BlockModels {
 	}
 
 	/** Java's FaceBakery#defaultFaceUV. */
+	private static boolean near(float[] a, float[] b) {
+		if (a.length != b.length) return false;
+		for (int i = 0; i < a.length; i++) {
+			if (Math.abs(a[i] - b[i]) > 1e-3f) return false;
+		}
+		return true;
+	}
+
 	private static float[] defaultUv(float[] from, float[] to, Direction face) {
 		return switch (face) {
 			case DOWN -> new float[] {from[0], 16 - to[2], to[0], 16 - from[2]};
@@ -242,8 +250,15 @@ final class BlockModels {
 
 	/**
 	 * A blockstate rotation, applied as Java applies it about the block's centre. A face's texture
-	 * turns with it, as Java's does, unless uvlock holds it to the world; under uvlock the region of
-	 * the texture a face shows isn't recomputed, only its angle.
+	 * turns with it, as Java's does, unless uvlock holds it to the world.
+	 *
+	 * <p>Under uvlock, a face showing the texture where it sits (the default UVs, which stairs and
+	 * slabs spell out) shows it where it sits once turned: what Java's uvlock comes to for such a
+	 * face, worked through for every orientation. Any other face keeps its UVs and only its angle is
+	 * held, which is near but not Java's.</p>
+	 *
+	 * <p>An element's own angles are carried axis by axis: exact for one axis, and for two under a
+	 * half turn, but not for two under a quarter turn, where the order they apply in changes.</p>
 	 */
 	private static Element rotate(Element element, OctahedralGroup rotation, boolean uvlock) {
 		if (rotation == OctahedralGroup.IDENTITY) return element;
@@ -261,6 +276,10 @@ final class BlockModels {
 		Map<Direction, Face> faces = new EnumMap<>(Direction.class);
 		element.faces().forEach((direction, face) -> {
 			Direction now = rotation.rotate(direction);
+			if (uvlock && face.rotation() == 0 && near(face.uv(), defaultUv(element.from(), element.to(), direction))) {
+				faces.put(now, new Face(defaultUv(from, to, now), face.texture(), face.variable(), face.tinted(), 0));
+				return;
+			}
 			int extra = uvlock ? 0 : turnOnFace(direction, now, rotation);
 			faces.put(now, extra == 0 ? face
 				: new Face(face.uv(), face.texture(), face.variable(), face.tinted(), (face.rotation() + extra) % 360));
