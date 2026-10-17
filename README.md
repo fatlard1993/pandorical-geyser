@@ -50,6 +50,18 @@ The details are in `NOTICE`, inside the jar.
 
 Pandorical builds as part of this one, from `../pandorical` beside it (see `settings.gradle`). `./gradlew runServer` starts a dev server; put Geyser-Fabric and Floodgate in `run/mods` first.
 
+### Checking how blocks come out
+
+`tools/bedrock-check` draws every block this mod converts beside the Java model it came from, in [Blockbench](https://www.blockbench.net)'s web build, and reports any that differ. Blockbench draws Bedrock geometry the way Bedrock does, so this checks the conversion without a Bedrock client.
+
+1. Start the dev server once with the export on, with the mods to check in `run/mods`:
+   `JAVA_TOOL_OPTIONS=-Dpandorical-geyser.export=true ./gradlew runServer`. It writes `run/pandorical-geyser/export`.
+2. In `tools/bedrock-check`, `npm install`, then
+   `node check.cjs ../../run/pandorical-geyser/export <minecraft client jar> out`. The client jar (Loom keeps one under `~/.gradle/caches/fabric-loom/<version>/minecraft-client-only.jar`) supplies vanilla textures.
+3. `out/report.md` lists each drawing compared; any that differ get an image, Java on the left, Bedrock on the right. The exit status is the number that differ.
+
+The Java side is drawn unturned, with the camera turned instead by the check's own rotation maths, so a mistake in this mod's rotations can't copy itself into the reference. Multipart blocks whose pieces turn differently, uvlock, and z turns are skipped and listed. Headless Chrome needs a few system libraries (on Ubuntu: `libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libasound2t64 libnss3`).
+
 ## License
 
 MIT, see [LICENSE](LICENSE).

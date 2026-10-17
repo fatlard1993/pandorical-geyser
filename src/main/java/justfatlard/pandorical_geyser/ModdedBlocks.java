@@ -113,6 +113,7 @@ final class ModdedBlocks {
 			}
 		}
 		Main.LOGGER.info("[pandorical-geyser] Mapped {} modded blocks ({} states) for Bedrock", registered.size(), states);
+		LookExport.writeIfAsked(all(), geometries());
 	}
 
 	private static Map<Block, Converted> build() {
@@ -216,7 +217,8 @@ final class ModdedBlocks {
 		if (block instanceof BeaconBeamBlock || block instanceof IceBlock || block instanceof SlimeBlock || block instanceof HoneyBlock) {
 			return "blend";
 		}
-		return state.canOcclude() ? "opaque" : "alpha_test";
+		// Cutout, single sided as Java draws it: plain alpha_test also draws every face's back.
+		return state.canOcclude() ? "opaque" : "alpha_test_single_sided";
 	}
 
 	/** Vanilla tints by biome; a server can't see a mod's tint, so foliage and grass are guessed by name. */

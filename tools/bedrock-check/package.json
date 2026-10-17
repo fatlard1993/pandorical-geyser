@@ -1,0 +1,13 @@
+{
+	"name": "pandorical-geyser-bedrock-check",
+	"private": true,
+	"description": "Draws every block look pandorical-geyser exported beside the Java model it came from, in Blockbench, and reports where they differ.",
+	"scripts": {
+		"check": "node check.cjs"
+	},
+	"dependencies": {
+		"adm-zip": "0.5.16",
+		"pngjs": "7.0.0",
+		"puppeteer": "24.43.1"
+	}
+}

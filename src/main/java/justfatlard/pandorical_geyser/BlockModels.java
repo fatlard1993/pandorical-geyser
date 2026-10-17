@@ -76,6 +76,34 @@ final class BlockModels {
 		return new Baked(elements, Optional.ofNullable(fallback), problem);
 	}
 
+	/**
+	 * The state's Java pieces unbaked, each its model flattened (elements, and textures resolved to
+	 * ids) with the rotation the blockstate gives it: what Java itself would draw, for comparing a
+	 * conversion against. Empty where there's no blockstate file.
+	 */
+	static List<JsonObject> javaPieces(BlockState state) {
+		Identifier block = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+		Optional<JsonObject> blockstate = JavaModels.json("assets/" + block.getNamespace() + "/blockstates/" + block.getPath() + ".json");
+		List<JsonObject> out = new ArrayList<>();
+		if (blockstate.isEmpty()) return out;
+		for (JsonObject piece : pieces(blockstate.get(), state)) {
+			Resolved model = resolve(Identifier.parse(piece.get("model").getAsString()));
+			JsonObject textures = new JsonObject();
+			model.textures().keySet().forEach(name -> texture(model.textures(), "#" + name)
+				.ifPresent(id -> textures.addProperty(name, id.toString())));
+			JsonObject flat = new JsonObject();
+			flat.add("textures", textures);
+			flat.add("elements", model.elements() == null ? new JsonArray() : model.elements());
+			JsonObject entry = new JsonObject();
+			entry.add("model", flat);
+			for (String axis : new String[] {"x", "y", "z", "uvlock"}) {
+				if (piece.has(axis)) entry.add(axis, piece.get(axis));
+			}
+			out.add(entry);
+		}
+		return out;
+	}
+
 	/** The pieces Java would draw: one variant, or every multipart entry whose condition holds. */
 	private static List<JsonObject> pieces(JsonObject blockstate, BlockState state) {
 		List<JsonObject> pieces = new ArrayList<>();
