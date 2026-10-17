@@ -32,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -134,27 +135,50 @@ final class ModdedBlocks {
 		return built;
 	}
 
+	/** How a state looks, apart from its boxes and light: what a block's states share most of. */
+	private record Drawing(String geometry, Map<String, Material> materials) {}
+
 	private static Converted convert(Identifier id, Block block, Map<Identifier, String> standIns) {
 		List<Look> looks = new ArrayList<>();
+		Map<Look, Integer> indexOf = new HashMap<>();
 		Map<BlockState, Integer> lookOf = new LinkedHashMap<>();
+		// A block can have thousands of states selecting a handful of models; each is drawn once.
+		Map<String, Drawing> drawn = new HashMap<>();
 		for (BlockState state : block.getStateDefinition().getPossibleStates()) {
-			BlockModels.Baked baked;
-			try {
-				baked = BlockModels.bake(state);
-			} catch (RuntimeException e) {
-				// A blockstate or model that doesn't read costs this state its look, not the block.
-				baked = new BlockModels.Baked(List.of(), Optional.empty(), "unreadable model: " + e.getMessage());
+			String key = drawingKey(state);
+			Drawing drawing = key == null ? null : drawn.get(key);
+			if (drawing == null && key != null && looks.size() == MAX_VARIANTS) {
+				// Full, and these pieces were never drawn, so this is a look that can't be added:
+				// baking it would only be thrown away (thousands of times over for a block pairing materials).
+				standIns.putIfAbsent(id, "more than " + MAX_VARIANTS + " looks; the rest share the first");
+				lookOf.put(state, 0);
+				continue;
 			}
-			if (baked.elements().isEmpty()) standIns.putIfAbsent(id, baked.problem());
-			Look look = look(state, baked);
-			int index = looks.indexOf(look);
-			if (index < 0) {
+			if (drawing == null) {
+				BlockModels.Baked baked;
+				try {
+					baked = BlockModels.bake(state);
+				} catch (RuntimeException e) {
+					// A blockstate or model that doesn't read costs this state its look, not the block.
+					baked = new BlockModels.Baked(List.of(), Optional.empty(), "unreadable model: " + e.getMessage());
+				}
+				if (baked.elements().isEmpty() && !baked.drawsNothing()) standIns.putIfAbsent(id, baked.problem());
+				drawing = drawing(state, baked);
+				// A stand-in is the shape of the state's outline, which the pieces don't decide.
+				if (key != null && !baked.elements().isEmpty()) drawn.put(key, drawing);
+			}
+			float hardness = state.getDestroySpeed(EmptyBlockGetter.INSTANCE, BlockPos.ZERO);
+			Look look = new Look(drawing.geometry(), drawing.materials(), collisionBoxes(state), selectionBox(state),
+				state.getLightEmission(), state.getLightDampening(), hardness < 0 ? 1_000_000f : hardness);
+			Integer index = indexOf.get(look);
+			if (index == null) {
 				if (looks.size() == MAX_VARIANTS) {
 					standIns.putIfAbsent(id, "more than " + MAX_VARIANTS + " looks; the rest share the first");
 					index = 0;
 				} else {
 					index = looks.size();
 					looks.add(look);
+					indexOf.put(look, index);
 				}
 			}
 			lookOf.put(state, index);
@@ -162,10 +186,21 @@ final class ModdedBlocks {
 		return new Converted(block, org.geysermc.geyser.api.util.Identifier.of(id.getNamespace(), id.getPath()), looks, lookOf);
 	}
 
-	private static Look look(BlockState state, BlockModels.Baked baked) {
+	/** Null where it can't be told: the state is then baked by itself, and any problem reported there. */
+	private static String drawingKey(BlockState state) {
+		try {
+			String pieces = BlockModels.drawingKey(state);
+			return pieces == null ? null : pieces + "|" + renderMethod(state) + "|" + state.getRenderShape();
+		} catch (RuntimeException e) {
+			return null;
+		}
+	}
+
+	private static Drawing drawing(BlockState state, BlockModels.Baked baked) {
 		List<BlockModels.Element> elements = baked.elements();
-		// Drawn by nothing on Java either (air-like blocks, barriers' kin), so nothing on Bedrock.
-		if (state.getRenderShape() == RenderShape.INVISIBLE) elements = List.of();
+		// Drawn by nothing on Java either (air-like blocks, barriers' kin, models with no elements),
+		// so nothing on Bedrock: a stand-in there would show what Java hides.
+		if (state.getRenderShape() == RenderShape.INVISIBLE || baked.drawsNothing()) elements = List.of();
 		else if (elements.isEmpty()) elements = List.of(standIn(state, baked));
 
 		String renderMethod = renderMethod(state);
@@ -190,9 +225,7 @@ final class ModdedBlocks {
 			if (!uv.isEmpty()) cubes.add(bedrockCube(element, uv));
 		}
 
-		float hardness = state.getDestroySpeed(EmptyBlockGetter.INSTANCE, BlockPos.ZERO);
-		return new Look(geometry(cubes), materials, collisionBoxes(state), selectionBox(state),
-			state.getLightEmission(), state.getLightDampening(), hardness < 0 ? 1_000_000f : hardness);
+		return new Drawing(geometry(cubes), materials);
 	}
 
 	/** A box the size of the block's outline, every face in the one texture a guess can find. */

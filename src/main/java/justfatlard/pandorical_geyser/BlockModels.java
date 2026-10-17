@@ -33,10 +33,16 @@ final class BlockModels {
 	record Element(float[] from, float[] to, float[] origin, float[] rotation, boolean rescale, Map<Direction, Face> faces) {}
 
 	/**
-	 * {@code elements} is empty when nothing could be drawn; {@code problem} then says why, and
-	 * {@code fallbackTexture} is the best guess at what the block looks like.
+	 * {@code elements} is empty either because the models draw nothing, or because nothing could be
+	 * drawn; {@code problem} then says why, and {@code fallbackTexture} is the best guess at what
+	 * the block looks like.
 	 */
-	record Baked(List<Element> elements, Optional<Identifier> fallbackTexture, String problem) {}
+	record Baked(List<Element> elements, Optional<Identifier> fallbackTexture, String problem) {
+		/** Every model read, and they draw nothing ({@code "elements": []}): invisible on Java too. */
+		boolean drawsNothing() {
+			return elements.isEmpty() && problem == null;
+		}
+	}
 
 	private record Resolved(JsonArray elements, Map<String, String> textures) {}
 
@@ -102,6 +108,17 @@ final class BlockModels {
 			out.add(entry);
 		}
 		return out;
+	}
+
+	/**
+	 * What decides how a state is drawn: the blockstate pieces it selects. States with the same key
+	 * draw the same, so a conversion can bake each key once. Null where there's no blockstate file.
+	 */
+	static String drawingKey(BlockState state) {
+		Identifier block = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+		return JavaModels.json("assets/" + block.getNamespace() + "/blockstates/" + block.getPath() + ".json")
+			.map(blockstate -> pieces(blockstate, state).toString())
+			.orElse(null);
 	}
 
 	/** The pieces Java would draw: one variant, or every multipart entry whose condition holds. */

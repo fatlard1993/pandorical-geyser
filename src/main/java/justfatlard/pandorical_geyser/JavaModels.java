@@ -8,7 +8,9 @@ import net.minecraft.resources.Identifier;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Java assets as Pandorical holds them. A dedicated server has none of Minecraft's own, so its
@@ -17,11 +19,14 @@ import java.util.Optional;
 final class JavaModels {
 	private static final JsonObject VANILLA_PARENTS = resource("vanilla-block-models.json");
 
+	/** Each asset parsed once, as every state of a block reads the same files. Callers don't change what they get. */
+	private static final Map<String, Optional<JsonObject>> PARSED = new ConcurrentHashMap<>();
+
 	private JavaModels() {}
 
 	static Optional<JsonObject> json(String path) {
-		return PandoricalApi.content().asset(path)
-			.map(bytes -> JsonParser.parseString(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject());
+		return PARSED.computeIfAbsent(path, unused -> PandoricalApi.content().asset(path)
+			.map(bytes -> JsonParser.parseString(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject()));
 	}
 
 	static Optional<JsonObject> model(Identifier id) {
