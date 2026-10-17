@@ -11,6 +11,7 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.properties.Property;
 import org.joml.Vector3f;
+import org.joml.Vector3i;
 
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -66,12 +67,9 @@ final class BlockModels {
 				continue;
 			}
 			OctahedralGroup rotation = Quadrant.fromXYZAngles(quadrant(piece, "x"), quadrant(piece, "y"), quadrant(piece, "z"));
-			// Turned about the vertical only, a top or bottom texture turns with the block, unless
-			// uvlock holds it to the world. Other turns aren't followed yet.
-			boolean turnsFlat = !piece.has("x") && !piece.has("z") && !(piece.has("uvlock") && piece.get("uvlock").getAsBoolean());
-			int flatTurn = turnsFlat ? Math.floorMod(piece.has("y") ? piece.get("y").getAsInt() : 0, 360) : 0;
+			boolean uvlock = piece.has("uvlock") && piece.get("uvlock").getAsBoolean();
 			for (JsonElement element : model.elements()) {
-				elements.add(rotate(element(element.getAsJsonObject(), model.textures()), rotation, flatTurn));
+				elements.add(rotate(element(element.getAsJsonObject(), model.textures()), rotation, uvlock));
 			}
 		}
 		if (!elements.isEmpty()) problem = null;
@@ -196,12 +194,11 @@ final class BlockModels {
 	}
 
 	/**
-	 * A blockstate rotation, applied as Java applies it about the block's centre. Faces move with
-	 * the block but keep their UVs as written: Java turns a texture with its face (and holds it
-	 * still under uvlock), and neither happens here, so a turned block's top and bottom, and any
-	 * face an x or z turn moves, can show their texture at the wrong angle on Bedrock.
+	 * A blockstate rotation, applied as Java applies it about the block's centre. A face's texture
+	 * turns with it, as Java's does, unless uvlock holds it to the world; under uvlock the region of
+	 * the texture a face shows isn't recomputed, only its angle.
 	 */
-	private static Element rotate(Element element, OctahedralGroup rotation, int flatTurn) {
+	private static Element rotate(Element element, OctahedralGroup rotation, boolean uvlock) {
 		if (rotation == OctahedralGroup.IDENTITY) return element;
 		float[] a = turn(element.from(), rotation);
 		float[] b = turn(element.to(), rotation);
@@ -217,12 +214,40 @@ final class BlockModels {
 		Map<Direction, Face> faces = new EnumMap<>(Direction.class);
 		element.faces().forEach((direction, face) -> {
 			Direction now = rotation.rotate(direction);
-			// Clockwise from above is the other way round seen from below.
-			int extra = now == Direction.UP ? flatTurn : now == Direction.DOWN ? 360 - flatTurn : 0;
-			faces.put(now, extra % 360 == 0 ? face
+			int extra = uvlock ? 0 : turnOnFace(direction, now, rotation);
+			faces.put(now, extra == 0 ? face
 				: new Face(face.uv(), face.texture(), face.variable(), face.tinted(), (face.rotation() + extra) % 360));
 		});
 		return new Element(from, to, turn(element.origin(), rotation), angles, element.rescale(), faces);
+	}
+
+	/**
+	 * How far a face's texture has turned, clockwise as seen from outside, once {@code rotation}
+	 * carries the face from {@code was} to {@code now}: where the texture's top points, carried
+	 * along, against where a texture's top points on the face it lands on.
+	 */
+	private static int turnOnFace(Direction was, Direction now, OctahedralGroup rotation) {
+		Vector3i carried = rotation.rotate(textureTop(was));
+		Vector3i top = textureTop(now);
+		Vector3i normal = new Vector3i(now.getStepX(), now.getStepY(), now.getStepZ());
+		for (int quarter = 0; quarter < 4; quarter++) {
+			if (top.equals(carried)) return quarter * 90;
+			// A quarter turn clockwise seen from outside is a negative turn about the face's normal.
+			top = new Vector3i(
+				top.y * normal.z - top.z * normal.y,
+				top.z * normal.x - top.x * normal.z,
+				top.x * normal.y - top.y * normal.x);
+		}
+		return 0;
+	}
+
+	/** Where the top of a texture points on each face, as FaceBakery lays out its default UVs. */
+	private static Vector3i textureTop(Direction face) {
+		return switch (face) {
+			case UP -> new Vector3i(0, 0, -1);
+			case DOWN -> new Vector3i(0, 0, 1);
+			default -> new Vector3i(0, 1, 0);
+		};
 	}
 
 	private static float[] turn(float[] point, OctahedralGroup rotation) {

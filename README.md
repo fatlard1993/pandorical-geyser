@@ -16,7 +16,6 @@ Server only. Bedrock players install nothing: their game is sent a resource pack
 ## What they don't
 
 - Anything a mod draws with Pandorical's own screens or HUD beyond the menus above: those need Pandorical on the game.
-- Some textures on turned blocks can sit at the wrong angle. Blocks tipped on their side (logs lying down, observers) aren't turned yet.
 - Models that aren't made of boxes, such as entity-drawn chests, show as the shape of their outline.
 
 ## Requirements
