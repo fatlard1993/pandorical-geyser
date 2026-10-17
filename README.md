@@ -58,7 +58,7 @@ Pandorical builds as part of this one, from `../pandorical` beside it (see `sett
    `JAVA_TOOL_OPTIONS=-Dpandorical-geyser.export=true ./gradlew runServer`. It writes `run/pandorical-geyser/export`.
 2. In `tools/bedrock-check`, `npm install`, then
    `node check.cjs ../../run/pandorical-geyser/export <minecraft client jar> out`. The client jar (Loom keeps one under `~/.gradle/caches/fabric-loom/<version>/minecraft-client-only.jar`) supplies vanilla textures.
-3. `out/report.md` lists each drawing compared; any that differ get an image, Java on the left, Bedrock on the right. The exit status is the number that differ.
+3. `out/report.md` lists each drawing compared; any that differ get an image, Java on the left, Bedrock on the right. The exit status is the number that differ. Looks that differ only in which textures fill the same faces (a door in every wood) are drawn once, so a large suite takes hours rather than days; the optional last argument checks only states whose name contains it, such as a mod's namespace.
 
 The Java side is drawn unturned, with the camera turned instead by the check's own rotation maths, so a mistake in this mod's rotations can't copy itself into the reference. Multipart blocks whose pieces turn differently, uvlock, and z turns are skipped and listed. Headless Chrome needs a few system libraries (on Ubuntu: `libatk1.0-0t64 libatk-bridge2.0-0t64 libcups2t64 libxkbcommon0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libasound2t64 libnss3`).
 

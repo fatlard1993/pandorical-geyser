@@ -162,7 +162,7 @@ final class ModdedBlocks {
 					// A blockstate or model that doesn't read costs this state its look, not the block.
 					baked = new BlockModels.Baked(List.of(), Optional.empty(), "unreadable model: " + e.getMessage());
 				}
-				if (baked.elements().isEmpty() && !baked.drawsNothing()) standIns.putIfAbsent(id, baked.problem());
+				if (baked.elements().isEmpty() && !drawsNothing(state, baked)) standIns.putIfAbsent(id, baked.problem() == null ? "drawn by its block entity" : baked.problem());
 				drawing = drawing(state, baked);
 				// A stand-in is the shape of the state's outline, which the pieces don't decide.
 				if (key != null && !baked.elements().isEmpty()) drawn.put(key, drawing);
@@ -196,11 +196,19 @@ final class ModdedBlocks {
 		}
 	}
 
+	/**
+	 * Invisible on Java: models with nothing in them, on a block with no block entity. A block that
+	 * has one (a chest) is drawn by its renderer, which Bedrock can't run, so it keeps a stand-in.
+	 */
+	private static boolean drawsNothing(BlockState state, BlockModels.Baked baked) {
+		return baked.drawsNothing() && !state.hasBlockEntity();
+	}
+
 	private static Drawing drawing(BlockState state, BlockModels.Baked baked) {
 		List<BlockModels.Element> elements = baked.elements();
 		// Drawn by nothing on Java either (air-like blocks, barriers' kin, models with no elements),
 		// so nothing on Bedrock: a stand-in there would show what Java hides.
-		if (state.getRenderShape() == RenderShape.INVISIBLE || baked.drawsNothing()) elements = List.of();
+		if (state.getRenderShape() == RenderShape.INVISIBLE || drawsNothing(state, baked)) elements = List.of();
 		else if (elements.isEmpty()) elements = List.of(standIn(state, baked));
 
 		String renderMethod = renderMethod(state);

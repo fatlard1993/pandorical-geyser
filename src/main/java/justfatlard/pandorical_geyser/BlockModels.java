@@ -38,7 +38,7 @@ final class BlockModels {
 	 * the block looks like.
 	 */
 	record Baked(List<Element> elements, Optional<Identifier> fallbackTexture, String problem) {
-		/** Every model read, and they draw nothing ({@code "elements": []}): invisible on Java too. */
+		/** Every model read, and none has elements: Java draws nothing from them (it may draw the block another way). */
 		boolean drawsNothing() {
 			return elements.isEmpty() && problem == null;
 		}
@@ -183,6 +183,8 @@ final class BlockModels {
 			}
 			if (elements == null && model.get().get("elements") instanceof JsonArray own) elements = own;
 			current = model.get().has("parent") ? Identifier.parse(model.get().get("parent").getAsString()) : null;
+			// A chain ending at a model with no parent and no elements anywhere draws nothing on Java.
+			if (current == null && elements == null) elements = new JsonArray();
 		}
 		return new Resolved(elements, textures);
 	}

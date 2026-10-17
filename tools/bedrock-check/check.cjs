@@ -121,6 +121,33 @@ function javaModel(look) {
 
 // --- Rendering ----------------------------------------------------------------------------------
 
+/**
+ * What a look's drawing depends on, with each texture replaced by a placeholder shared between the
+ * Java model and the Bedrock materials. The conversion never looks inside a texture, so looks that
+ * differ only in which textures fill the same faces (a door in every wood) convert alike, and one
+ * stands for all. A Bedrock face given a different texture than its Java face changes the pattern,
+ * so that look is still drawn.
+ */
+function drawingKey(look) {
+	const placeholders = new Map()
+	const placeholder = id => {
+		if (!placeholders.has(id)) placeholders.set(id, `t${placeholders.size}`)
+		return placeholders.get(id)
+	}
+	const sorted = object => Object.fromEntries(Object.entries(object).sort(([a], [b]) => a.localeCompare(b)))
+	const java = look.java.map(piece => ({
+		...piece,
+		model: {
+			...piece.model,
+			textures: Object.fromEntries(Object.entries(sorted(piece.model.textures))
+				.map(([name, id]) => [name, id.startsWith('#') ? id : placeholder(id)])),
+		},
+	}))
+	const materials = Object.entries(sorted(look.materials))
+		.map(([name, m]) => [name, placeholder(exported.textures[m.texture] ?? m.texture), m.render])
+	return JSON.stringify([look.geometry, materials, java])
+}
+
 async function render(page, scene, view) {
 	await page.evaluate(async (scene, view) => {
 		if (Project) Project.close?.(true)
@@ -210,11 +237,11 @@ function sideBySide(pairs) {
 	const report = ['| State | Result | Differing |', '|---|---|---|']
 	let failed = 0
 	let checked = 0
-	// Looks that differ only in collision or light draw alike; each drawing is compared once.
+	// Each way of drawing is compared once: see drawingKey.
 	const compared = new Set()
 	for (const look of exported.looks) {
 		if (only && !look.state.includes(only)) continue
-		const drawing = JSON.stringify([look.geometry, look.materials, look.java])
+		const drawing = drawingKey(look)
 		if (compared.has(drawing)) continue
 		compared.add(drawing)
 		const java = javaModel(look)
