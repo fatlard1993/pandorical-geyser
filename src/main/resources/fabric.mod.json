@@ -11,6 +11,7 @@
     "sources": "https://github.com/fatlard1993/pandorical-geyser"
   },
   "license": "MIT",
+  "icon": "assets/pandorical-geyser/icon.png",
   "environment": "server",
   "entrypoints": {
     "main": [
