@@ -22,7 +22,7 @@ Server only. Bedrock players install nothing: their game is sent a resource pack
 
 - Minecraft, Fabric Loader, Fabric API
 - [Pandorical](https://github.com/fatlard1993/pandorical) 15.22.0 or later
-- [Geyser-Fabric](https://geysermc.org/download) 2.12 or later
+- [Geyser-Fabric](https://geysermc.org/download) 2.12, build 1265 or later. Earlier builds lose modded blocks on Bedrock when they're placed or changed: they show as air until the chunk is sent again.
 - [Floodgate](https://geysermc.org/download?project=floodgate) for Fabric, recommended: it is what lets Bedrock players in without a Java account, and the earliest a player can be told apart. Without it this mod asks Geyser alone, which also works.
 
 ## Setting up

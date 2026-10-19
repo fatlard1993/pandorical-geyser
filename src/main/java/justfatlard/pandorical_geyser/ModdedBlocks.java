@@ -80,14 +80,6 @@ final class ModdedBlocks {
 		return Optional.ofNullable(all().get(block)).map(Converted::bedrockId);
 	}
 
-	/** Every state of each block Geyser took, block by block. */
-	static List<List<BlockState>> registeredStates() {
-		return all().values().stream()
-			.filter(block -> registered.contains(block.block()))
-			.map(block -> List.copyOf(block.lookOf().keySet()))
-			.toList();
-	}
-
 	/** Geometry files for the pack, by identifier. */
 	static synchronized Map<String, JsonObject> geometries() {
 		all();
