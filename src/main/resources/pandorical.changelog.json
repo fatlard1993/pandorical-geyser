@@ -1,0 +1,18 @@
+{
+  "overview": [
+    "Lets Bedrock players join a Pandorical server through Geyser, and play it with the server's modded blocks and items.",
+    "Server only. Bedrock players install nothing: their game is sent a resource pack when they join."
+  ],
+  "versions": {
+    "0.1.0": [
+      "Bedrock players get past Fabric's registry check on a modded server, and only Bedrock players: a Java game without Fabric is still turned away.",
+      "Modded items show on Bedrock with their names, textures, stack sizes and durability.",
+      "Modded tools dig at their own speeds, food is eaten as on Java, armour goes on its slot, and weapons show their damage.",
+      "Modded blocks are shaped and textured from their Java models, and you walk on, through and aim at them as on Java.",
+      "Grass and leaves take the biome's colour, and glass and ice are see-through.",
+      "Pandorical's menus open as Bedrock forms, through /pandorical actions or Geyser's quick actions.",
+      "A mod that asks for a first or third person camera gets it on Bedrock.",
+      "Needs Geyser-Fabric build 1265 or later, with enable-custom-content set to true in Geyser's config."
+    ]
+  }
+}
