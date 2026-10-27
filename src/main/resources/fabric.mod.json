@@ -31,5 +31,12 @@
   },
   "suggests": {
     "floodgate": "*"
+  },
+  "custom": {
+    "modmenu": {
+      "links": {
+        "modmenu.donate": "https://github.com/sponsors/fatlard1993"
+      }
+    }
   }
 }
