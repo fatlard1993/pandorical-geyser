@@ -61,7 +61,12 @@ final class ModdedBlocks {
 
 	record Look(String geometry, Map<String, Material> materials, List<BoxComponent> collision, BoxComponent selection, int lightEmission, int lightDampening, float hardness) {}
 
-	record Converted(Block block, org.geysermc.geyser.api.util.Identifier bedrockId, List<Look> looks, Map<BlockState, Integer> lookOf) {}
+	record Converted(Block block, Identifier id, List<Look> looks, Map<BlockState, Integer> lookOf) {
+		/** Made when asked: Geyser's identifiers need its API, which exists only once Geyser has started. */
+		org.geysermc.geyser.api.util.Identifier bedrockId() {
+			return org.geysermc.geyser.api.util.Identifier.of(id.getNamespace(), id.getPath());
+		}
+	}
 
 	private static Map<Block, Converted> converted;
 	/** The blocks Geyser took; an item may only place one of these. */
@@ -175,7 +180,7 @@ final class ModdedBlocks {
 			}
 			lookOf.put(state, index);
 		}
-		return new Converted(block, org.geysermc.geyser.api.util.Identifier.of(id.getNamespace(), id.getPath()), looks, lookOf);
+		return new Converted(block, id, looks, lookOf);
 	}
 
 	/** Null where it can't be told: the state is then baked by itself, and any problem reported there. */

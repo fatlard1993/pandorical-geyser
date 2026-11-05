@@ -4,6 +4,9 @@
     "Server only. Bedrock players install nothing: their game is sent a resource pack when they join."
   ],
   "versions": {
+    "0.1.2": [
+      "The server is ready for Bedrock players a few seconds sooner again: modded blocks start converting as soon as every mod has loaded."
+    ],
     "0.1.1": [
       "The server is ready for Bedrock players sooner after it starts: modded blocks, icons and the resource pack are converted while the world loads, not after."
     ],

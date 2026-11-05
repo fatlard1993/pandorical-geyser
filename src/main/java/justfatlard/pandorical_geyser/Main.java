@@ -14,6 +14,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 public class Main implements ModInitializer {
@@ -29,6 +30,7 @@ public class Main implements ModInitializer {
 			bedrock = asked(FloodgateDetector::isBedrock).or(bedrock);
 			LOGGER.info("[pandorical-geyser] Recognising Bedrock players through Floodgate");
 		}
+		initialized = true;
 		PandoricalApi.detectBedrock(bedrock);
 		PandoricalApi.bridgeBedrockCamera(new BedrockCamera());
 
@@ -39,9 +41,7 @@ public class Main implements ModInitializer {
 				LOGGER.error("[pandorical-geyser] Geyser didn't start, so Bedrock players get no modded blocks or items");
 				return;
 			}
-			convertAhead("blocks", ModdedBlocks::all);
-			convertAhead("icons", ItemIcons::all);
-			convertAhead("pack", BedrockPack::prepareQuietly);
+			convertAhead();
 			var events = GeyserApi.api().eventBus();
 			events.subscribe(EventRegistrar.of(this), GeyserDefineCustomBlocksEvent.class, ModdedBlocks::register);
 			events.subscribe(EventRegistrar.of(this), GeyserDefineCustomItemsEvent.class, ModdedItems::register);
@@ -49,11 +49,23 @@ public class Main implements ModInitializer {
 		});
 	}
 
+	private static final AtomicBoolean convertingAhead = new AtomicBoolean();
+	/** Conversion keeps what it first finds, so a hook that fires before mod init must not start it. */
+	private static volatile boolean initialized = false;
+
 	/**
-	 * Converts while the world loads and Geyser starts, so Geyser's events on the server thread
-	 * find the work done or under way instead of starting it. A failure here is left for the
-	 * event to meet again and report.
+	 * Converts while the data packs and world load and Geyser starts, so Geyser's events on the
+	 * server thread find the work done or under way instead of starting it. Started once every
+	 * block and item is registered: as data packs begin loading, or at server start should that
+	 * hook not have fired. A failure is left for the event to meet again and report.
 	 */
+	public static void convertAhead() {
+		if (!initialized || !convertingAhead.compareAndSet(false, true)) return;
+		convertAhead("blocks", ModdedBlocks::all);
+		convertAhead("icons", ItemIcons::all);
+		convertAhead("pack", BedrockPack::prepareQuietly);
+	}
+
 	private static void convertAhead(String what, Runnable conversion) {
 		Thread.ofPlatform().daemon().name("pandorical-geyser-" + what).start(() -> {
 			try {
