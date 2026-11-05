@@ -69,6 +69,15 @@ final class ModdedBlocks {
 	}
 
 	private static Map<Block, Converted> converted;
+	/**
+	 * Each state's Java side, read ahead with the conversion and handed to Geyser's event once:
+	 * the event only fills Geyser's builders. A block missing here is read in the event instead.
+	 */
+	private static final Map<Block, Map<BlockState, JavaFacts>> pendingFacts = new ConcurrentHashMap<>();
+
+	/** What Geyser is told about a Java state, none of it needing Geyser's API to work out. */
+	private record JavaFacts(String identifier, int javaId, int stateGroupId, float hardness, boolean waterlogged,
+			JavaBoundingBox[] collision, boolean canBreakWithHand, String pistonBehavior) {}
 	/** The blocks Geyser took; an item may only place one of these. */
 	private static final Set<Block> registered = ConcurrentHashMap.newKeySet();
 	private static final Map<String, JsonObject> geometries = new TreeMap<>();
@@ -98,9 +107,14 @@ final class ModdedBlocks {
 				// Every override built before any is registered, so a state that can't be described
 				// leaves the block out whole rather than half there.
 				NonVanillaCustomBlockData data = data(block);
+				Map<BlockState, JavaFacts> facts = pendingFacts.remove(block.block());
+				// One per look rather than per state: a block's states share a few hundred at most.
+				Map<Integer, CustomBlockState> lookStates = new HashMap<>();
 				Map<JavaBlockState, CustomBlockState> overrides = new LinkedHashMap<>();
 				for (var entry : block.lookOf().entrySet()) {
-					overrides.put(javaState(entry.getKey()), customState(data, block.looks().size(), entry.getValue()));
+					JavaFacts known = facts == null ? null : facts.get(entry.getKey());
+					overrides.put(javaState(known != null ? known : javaFacts(entry.getKey())),
+						lookStates.computeIfAbsent(entry.getValue(), look -> customState(data, block.looks().size(), look)));
 				}
 				event.register(data);
 				overrides.forEach(event::registerOverride);
@@ -124,6 +138,14 @@ final class ModdedBlocks {
 				built.put(entry.getValue(), convert(id, entry.getValue(), standIns));
 			} catch (RuntimeException e) {
 				Main.LOGGER.warn("[pandorical-geyser] Couldn't convert {} for Bedrock, so its states stay air there", id, e);
+				continue;
+			}
+			try {
+				Map<BlockState, JavaFacts> facts = new LinkedHashMap<>();
+				for (BlockState state : entry.getValue().getStateDefinition().getPossibleStates()) facts.put(state, javaFacts(state));
+				pendingFacts.put(entry.getValue(), facts);
+			} catch (RuntimeException e) {
+				// Left for the event, which reads the state again and reports what fails.
 			}
 		}
 		if (!standIns.isEmpty()) {
@@ -432,20 +454,32 @@ final class ModdedBlocks {
 		return builder.build();
 	}
 
-	private static JavaBlockState javaState(BlockState state) {
+	private static JavaFacts javaFacts(BlockState state) {
 		JavaBoundingBox[] collision = shape(state, true).toAabbs().stream()
 			.map(box -> new JavaBoundingBox(box.getCenter().x, box.getCenter().y, box.getCenter().z, box.getXsize(), box.getYsize(), box.getZsize()))
 			.toArray(JavaBoundingBox[]::new);
 		float hardness = state.getDestroySpeed(EmptyBlockGetter.INSTANCE, BlockPos.ZERO);
+		return new JavaFacts(
+			BlockModels.describe(state),
+			Block.getId(state),
+			BuiltInRegistries.BLOCK.getId(state.getBlock()),
+			hardness < 0 ? 1_000_000f : hardness,
+			state.hasProperty(BlockStateProperties.WATERLOGGED) && state.getValue(BlockStateProperties.WATERLOGGED),
+			collision,
+			!state.requiresCorrectToolForDrops(),
+			state.getPistonPushReaction().name().toLowerCase(Locale.ROOT));
+	}
+
+	private static JavaBlockState javaState(JavaFacts facts) {
 		return JavaBlockState.builder()
-			.identifier(BlockModels.describe(state))
-			.javaId(Block.getId(state))
-			.stateGroupId(BuiltInRegistries.BLOCK.getId(state.getBlock()))
-			.blockHardness(hardness < 0 ? 1_000_000f : hardness)
-			.waterlogged(state.hasProperty(BlockStateProperties.WATERLOGGED) && state.getValue(BlockStateProperties.WATERLOGGED))
-			.collision(collision)
-			.canBreakWithHand(!state.requiresCorrectToolForDrops())
-			.pistonBehavior(state.getPistonPushReaction().name().toLowerCase(Locale.ROOT))
+			.identifier(facts.identifier())
+			.javaId(facts.javaId())
+			.stateGroupId(facts.stateGroupId())
+			.blockHardness(facts.hardness())
+			.waterlogged(facts.waterlogged())
+			.collision(facts.collision())
+			.canBreakWithHand(facts.canBreakWithHand())
+			.pistonBehavior(facts.pistonBehavior())
 			.build();
 	}
 
