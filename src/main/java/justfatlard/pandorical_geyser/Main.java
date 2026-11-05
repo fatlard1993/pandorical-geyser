@@ -39,10 +39,28 @@ public class Main implements ModInitializer {
 				LOGGER.error("[pandorical-geyser] Geyser didn't start, so Bedrock players get no modded blocks or items");
 				return;
 			}
+			convertAhead("blocks", ModdedBlocks::all);
+			convertAhead("icons", ItemIcons::all);
+			convertAhead("pack", BedrockPack::prepareQuietly);
 			var events = GeyserApi.api().eventBus();
 			events.subscribe(EventRegistrar.of(this), GeyserDefineCustomBlocksEvent.class, ModdedBlocks::register);
 			events.subscribe(EventRegistrar.of(this), GeyserDefineCustomItemsEvent.class, ModdedItems::register);
 			events.subscribe(EventRegistrar.of(this), GeyserDefineResourcePacksEvent.class, BedrockPack::register);
+		});
+	}
+
+	/**
+	 * Converts while the world loads and Geyser starts, so Geyser's events on the server thread
+	 * find the work done or under way instead of starting it. A failure here is left for the
+	 * event to meet again and report.
+	 */
+	private static void convertAhead(String what, Runnable conversion) {
+		Thread.ofPlatform().daemon().name("pandorical-geyser-" + what).start(() -> {
+			try {
+				conversion.run();
+			} catch (RuntimeException e) {
+				LOGGER.debug("[pandorical-geyser] Converting {} ahead failed; Geyser's event will try again", what, e);
+			}
 		});
 	}
 

@@ -4,6 +4,9 @@
     "Server only. Bedrock players install nothing: their game is sent a resource pack when they join."
   ],
   "versions": {
+    "0.1.1": [
+      "The server is ready for Bedrock players sooner after it starts: modded blocks, icons and the resource pack are converted while the world loads, not after."
+    ],
     "0.1.0": [
       "Bedrock players get past Fabric's registry check on a modded server, and only Bedrock players: a Java game without Fabric is still turned away.",
       "Modded items show on Bedrock with their names, textures, stack sizes and durability.",

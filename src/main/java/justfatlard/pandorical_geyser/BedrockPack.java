@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Function;
@@ -51,14 +52,37 @@ final class BedrockPack {
 		return path.substring(0, path.lastIndexOf('/') + 1) + "pandorical_" + Integer.toHexString(source.hashCode());
 	}
 
+	private record Written(Optional<Path> path, int icons, int geometries) {}
+
+	private static Written written;
+
+	/** Built once, by whichever of the early conversion or Geyser's event asks first. Empty when there is nothing to send. */
+	static synchronized void prepare() throws IOException {
+		if (written != null) return;
+		Collection<ItemIcons.Icon> icons = ItemIcons.all().values();
+		Map<String, JsonObject> geometries = ModdedBlocks.geometries();
+		Optional<Path> path = icons.isEmpty() && geometries.isEmpty()
+			? Optional.empty()
+			: Optional.of(write(icons, geometries, BlockTextures.all().values()));
+		written = new Written(path, icons.size(), geometries.size());
+	}
+
+	/** For the early conversion: a failure is left for Geyser's event to meet again and report. */
+	static void prepareQuietly() {
+		try {
+			prepare();
+		} catch (IOException e) {
+			Main.LOGGER.debug("[pandorical-geyser] Building the Bedrock pack ahead failed; Geyser's event will try again", e);
+		}
+	}
+
 	static void register(GeyserDefineResourcePacksEvent event) {
 		try {
-			Collection<ItemIcons.Icon> icons = ItemIcons.all().values();
-			Map<String, JsonObject> geometries = ModdedBlocks.geometries();
-			if (icons.isEmpty() && geometries.isEmpty()) return;
-			Path pack = write(icons, geometries, BlockTextures.all().values());
-			event.register(ResourcePack.create(PackCodec.path(pack)));
-			Main.LOGGER.info("[pandorical-geyser] Sending Bedrock players {} item icons and {} block shapes in {}", icons.size(), geometries.size(), pack);
+			prepare();
+			Written pack = written;
+			if (pack.path().isEmpty()) return;
+			event.register(ResourcePack.create(PackCodec.path(pack.path().get())));
+			Main.LOGGER.info("[pandorical-geyser] Sending Bedrock players {} item icons and {} block shapes in {}", pack.icons(), pack.geometries(), pack.path().get());
 		} catch (IOException | RuntimeException e) {
 			Main.LOGGER.error("[pandorical-geyser] Couldn't build the Bedrock pack; modded items and blocks will look wrong", e);
 		}
