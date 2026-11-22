@@ -3,7 +3,7 @@
   "id": "pandorical-geyser",
   "version": "${version}",
   "name": "Pandorical Geyser",
-  "description": "Lets Bedrock players, through Geyser and Floodgate, join a Pandorical server and see its modded blocks and items",
+  "description": "Lets Bedrock players join a Pandorical server and see its modded content",
   "authors": [
     "justfatlard"
   ],
